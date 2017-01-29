@@ -42,7 +42,7 @@ function getNext() {
         if (msg.length != 0)
             $("html, body").animate({ scrollTop: $(document).height() }, 1000);
         // scroll to bottom
-        setTimeout(getNext, 1000);
+        setTimeout(getNext, 1250);
     })
 }
 
@@ -175,7 +175,7 @@ doType["kill-button"] = function(d) {
 doType["witch-button"] = function(d) {
     medicine = poison = null
     if (d.canMedicine) {
-        addMessage(d.beKilled + "被杀了。")
+        addMessage(d.beKilled + "被杀了")
         medicine = addButton("medicine", "救TA", "btn-success")
         medicine.click(function() {
             $.post("/api/send_message", {type:"choose-witch",action:"medicine"},
@@ -237,7 +237,7 @@ doType["role-info"] = function(d) {
 
 // 猎人消息
 doType["hunter-enable"] = function(d) {
-    addMessage("你是猎人，今晚你死了，你可以开枪。"); addBreakLine()
+    addMessage("你是猎人，今晚你死了，你可以开枪"); addBreakLine()
 }
 
 // 是否参加警长竞选
@@ -322,6 +322,10 @@ doType["elect-vote"] = function(d) {
     addBreakLine()
 }
 
+doType["day-info"] = function(d) {
+     addMessage("===============第" + d.day + "天===============")
+     addBreakLine()
+}
 doType["death-info"] = function(d) {
     if (d.death.length == 0)
         addMessage("昨天晚上是平安夜")
@@ -347,7 +351,7 @@ doType["handover-button"] = function(d) {
         })
     })
 
-    tear = addButton("tear", "不使用药物", "btn-default")
+    tear = addButton("tear", "撕警徽", "btn-default")
     tear.click(function() {
         $.post("/api/send_message", {type: "choose-handover", action: "tear"},
             function(data, status) {
@@ -361,9 +365,10 @@ doType["handover-button"] = function(d) {
 
 doType["handover-info"] = function(d) {
     if (d.tear)
-        addMessage("警徽被撕毁了。")
-    eles
-        addMessage("警徽移交给了 " + d.name + "。")
+        addMessage("警徽被撕毁了")
+    else
+        addMessage("警徽移交给了 " + d.name + "")
+    addBreakLine()
 }
 
 doType["start-exile-button"] = function(d) {

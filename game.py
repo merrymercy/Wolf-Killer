@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from  __future__ import unicode_literals
 import random
 import uuid
 
@@ -279,10 +280,10 @@ class Game:
         return names
 
     def doStage(self, name, data):
-        print("in state", self.state)
 
         again = True
         while (again):
+            print("in state", self.state)
             again = False
             if (self.state == Game.GST_START):
                 self.state = Game.GST_SEND_CLOSE_EYE
@@ -371,7 +372,7 @@ class Game:
                     self.state = Game.GST_WAIT_WITCH
                 else:
                     self.state = Game.GST_DAWN
-                    align = True
+                    again = True
             elif (self.state == Game.GST_WAIT_WITCH):
                 if (data.get("type") == "choose-witch" and self.witch == name):
                     action = self.witchAction = data.get("action")
@@ -403,14 +404,15 @@ class Game:
                 self.day += 1
                 if (self.day == 1):  # 第一天竞选警长
                     self.state = Game.GST_SEND_ELECT
-                    again = True
                 else:
                     self.state = Game.GST_SEND_DEATH
-                    again = True
+                again = True
 
                 # send info to hunter
                 if (self.hunter in self.die and self.hunter != self.bePoisoned):
                     self.sendPlayer(self.hunter, {"type": "hunter-enable"})
+
+                self.sendAll({"type":"day-info", "day": self.day})
 
             #====== DAY ======#
             elif (self.state == Game.GST_SEND_ELECT): # 是否竞选警长
@@ -486,7 +488,8 @@ class Game:
                         again = True
 
             elif (self.state == Game.GST_SEND_DEATH):
-                self.sendAll({"type": "death-info", "death": self.die})
+                self.sendAll({"type": "death-info", "death": self.die,
+                              "day" : self.day})
                 for item in self.die:
                     self.players[item].die()
 
@@ -496,10 +499,12 @@ class Game:
 
             elif (self.state == Game.GST_SEND_HANDOVER): # 移交/撕毁警徽
                 if (self.police in self.die):
+                    print("police", self.police, "die")
                     self.sendPlayer(self.police, {"type": "handover-button",
-                        "players": slef.getAlive()})
+                        "players": self.getAlive()})
                     self.state = Game.GST_WAIT_HANDOVER
                 else:
+                    print("police", self.police, "alive")
                     self.state = Game.GST_SEND_EXILE
                     again = True
             elif (self.state == Game.GST_WAIT_HANDOVER):
@@ -552,6 +557,7 @@ class Game:
             elif (self.state == Game.GST_SEND_EXILE_INFO):
                 #self.sendAll({"type": "exile-info", "name": self.beExiled})
                 self.state = Game.GST_SEND_CLOSE_EYE
+                self.players[self.beExiled].die()
                 again = True
 
             elif (self.state == Game.GST_SEND_HUNTER):

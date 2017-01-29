@@ -159,8 +159,8 @@ def index():
 ##### QUICK TEST #####
 @app.route('/test/host', methods=['GET'])
 def test_host():
-    n = 7
-    cfg = GameConfig(2, 1, True, True, True, True)
+    n = 6
+    cfg = GameConfig(1, 1, True, True, True, True)
 
     # create players
     pdb.addPlayer('asdf', 'asdf')
