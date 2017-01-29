@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Wolf Killer - Host{% endblock %}
+
+{% block page_content %}
+<div id="host-control-panel" style="display:None">
+<h1>控制选项</h1>
+<button id="start-game" class="btn btn-default disabled">开始游戏</button>
+<button id="close-room" class="btn btn-danger">关闭房间</button>
+</div>
+
+<div id="player-control-panel" style="display:None">
+<h1>控制选项</h1>
+<button id="quit-room" class="btn btn-danger">离开房间</button>
+</div>
+
+<div>
+<h1>玩家列表</h1>
+<ul id="players" class="circle"> </ul>
+</div>
+
+<div id="message">
+<h1>消息</h1>
+</div>
+
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+
+function getNext() {
+    $.get("/api/get_message", function(d) {
+        msg = d.messages
+        var i
+        for (i = 0; i < msg.length; i++) {
+            console.log(i, msg[i])
+            doType[msg[i].type](msg[i])
+        }
+        if (msg.length != 0)
+            $("html, body").animate({ scrollTop: $(document).height() }, 1000);
+        // scroll to bottom
+        setTimeout(getNext, 1000);
+    })
+}
+
+$(document).ready(function() {
+    addBreakLine()
+    $.get("/api/enter_room", function(d) {
+        setTimeout(getNext, 1000)
+    })
+})
+
+var doType = {}
+
+/* CONTROL PANEL */
+doType["host-control-panel"] = function (d) {
+    $("#host-control-panel").css("display", "")
+    $("#close-room").click(function() {
+        if (confirm("确定关闭房间吗？")) {
+            $.post("/api/host/close_room")
+            setTimeout(function() { window.location="/" }, 500);
+        }
+    })
+
+    $("#start-game").click(function() {
+        $.post("/api/host/start_game", function(d) {
+            console.log("start game", d)
+        })
+    })
+}
+
+doType["player-control-panel"] = function(d) {
+    $("#player-control-panel").css("display", "")
+    $("#quit-room").click(function() {
+        if (confirm("确定离开房间吗？")) {
+            $.post("/api/host/quit_room")
+            setTimeout(function() { window.location="/" }, 500);
+        }
+    })
+}
+
+doType["start-button"] = function(d) {
+    $("#start-game").removeClass("btn-default disabled")
+                    .addClass("btn-primary")
+}
+
+doType["ingame-button"] = function(d) {
+    $("#start-game").text("游戏中").unbind("click")
+                    //.removeClass("btn-primary")
+                    //.addClass("btn-success")
+}
+
+/* PLAYRE INFO */
+doType["player-info"] = function(d) {
+    html = ""
+    for (i = 0; i < d.players.length; i++)
+        html += "<li>" + d.players[i] + "</li>"
+    $("#players").html(html)
+}
+
+doType["role"] = function(d) {
+    addMessage("你的角色是" + d.role)
+    addBreakLine()
+}
+
+/* PLAY PROCEDURE */
+doType["close-eye-button"] = function(d) {
+    btn = addButton("close-eye", "天黑 请闭眼", "btn-warning")
+    btn.click(function() {
+        $.post("/api/send_message", {type:"close-eye"}, function(data, status){
+            console.log("post cloes-eye", data, status)
+            btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["guard-button"] = function(d) {
+    chooseName = addChoose("choose-guard", "选择要守护的人", d.players)
+
+    btn = addButton("guard", "守护", "btn-warning")
+    btn.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type: "choose-guard", name: sel}, 
+           function(data, status){
+               console.log("post choose guard", data, status)
+               btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["pro-button"] = function(d) {
+    chooseName = addChoose("choose-guard", "选择要验的人", d.players)
+
+    btn = addButton("guard", "查看身份", "btn-warning")
+    btn.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type: "choose-pro", name: sel}, 
+           function(data, status){
+               console.log("post choose guard", data, status)
+               btn.remove()
+        })
+    })
+}
+
+doType["pro-info"] = function(d) {
+    addMessage(d.name + "是" + d.role)
+    addBreakLine()
+}
+
+doType["kill-button"] = function(d) {
+    chooseName = addChoose("choose-kill", "选择要下刀的目标", d.players)
+    btn = addButton("kill", "下刀", "btn-warning")
+    btn.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type: "choose-kill", name: sel},
+            function(data, status) {
+               console.log("post choose kill", data, status)
+               btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["witch-button"] = function(d) {
+    medicine = poison = null
+    if (d.canMedicine) {
+        addMessage(d.beKilled + "被杀了。")
+        medicine = addButton("medicine", "救TA", "btn-success")
+        medicine.click(function() {
+            $.post("/api/send_message", {type:"choose-witch",action:"medicine"},
+                function(data, status) {
+                    console.log("post choose medicine", data, status)
+                    if (d.canPoison) { poison.remove() }
+                    if (d.canMedicine) { medicine.remove() }
+                    pass.remove()
+            })
+        })
+    }
+
+    if (d.canPoison) {
+        chooseName = addChoose("choose-poison", "你还有一瓶毒药", d.players)
+        poison = addButton("poison", "毒TA", "btn-warning")
+        poison.click(function() {
+            sel = $("input:radio[name=" + chooseName + "]:checked").val()
+            if (sel == null) { return }
+
+            $.post("/api/send_message", {type:"choose-witch", action:"poison",
+                name: sel}, function(data, status) {
+                    console.log("post choose poison", data, status)
+                    if (d.canPoison) { poison.remove() }
+                    if (d.canMedicine) { medicine.remove() }
+                    pass.remove()
+            })
+        })
+    }
+
+    pass = addButton("pass", "不使用药物", "btn-default")
+    pass.click(function() {
+        $.post("/api/send_message", {type:"choose-witch", action:"pass"},
+            function(data, status) {
+                console.log("post choose pass", data, status)
+                if (d.canPoison) { poison.remove() }
+                if (d.canMedicine) { medicine.remove() }
+                pass.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["vote-result"] = function(d) {
+    info = ""
+    for (var key in d.ballot) {
+        info += (key + " 投给 " + d.ballot[key]) + "<br>"
+    }
+    if (d.tie)
+        info += " 平票，重投"
+    else
+        info += d.select + " " + d.msg
+    addMessage(info)
+    addBreakLine()
+}
+
+doType["role-info"] = function(d) {
+    addMessage(d.info); addBreakLine()
+}
+
+// 猎人消息
+doType["hunter-enable"] = function(d) {
+    addMessage("你是猎人，今晚你死了，你可以开枪。"); addBreakLine()
+}
+
+// 是否参加警长竞选
+doType["elect-button"] = function(d) {
+    up = addButton("up", "竞选警长", "btn-warning")
+    down = addButton("down", "不竞选", "btn-default")
+    up.click(function() {
+        $.post("/api/send_message", {type: "choose-elect", action: "up"},
+            function(data, status) {
+                console.log("post up elect", data, status)
+                up.remove()
+                down.remove()
+        })
+    })
+    down.click(function() {
+        $.post("/api/send_message", {type: "choose-elect",action: "down"},
+            function(data, status) {
+                console.log("post down water", data, status)
+                up.remove()
+                down.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["elect-info"] = function(d) {
+    html = d.players[0]
+    for (i = 1; i < d.players.length; i++)
+        html += ", " + d.players[i]
+ 
+    addMessage(html + " 参加警长竞选"); addBreakLine()
+}
+
+// 退水
+doType["down-water-button"] = function(d) {
+    btn = addButton("down-water", "退水", "btn-warning")
+    btn.click(function() {
+        $.post("/api/send_message", {"type": "down-water"},
+            function(data, status) {
+                console.log("post down-water", data, status)
+                btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+// 开始竞选按钮
+doType["start-elect-button"] = function(d) {
+    btn = addButton("start-elect", "竞选发言结束，开始警长投票", "btn-warning")
+    btn.click(function() {
+        $.post("/api/send_message", {type:"start-elect"}, function(data,status){
+            console.log("post start elect")
+            btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["down-water-info"] = function(d) {
+    addMessage(d.name + "退水"); addBreakLine()
+}
+doType["no-police-info"] = function(d) {
+    addMessage("没有人竞选警长"); addBreakLine()
+}
+doType["one-police-info"] = function(d) {
+    addMessage("只有一个人竞选，警徽交给 " + d.name); addBreakLine()
+}
+
+doType["elect-vote"] = function(d) {
+    chooseName = addChoose("elect-vote", "竞选警长", d.players)
+    btn = addButton("elect-vote", "选TA", "btn-warning")
+    btn.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type:"elect-vote", name: sel},
+            function(data, status) {
+                console.log("post elect vote", data, status)
+                btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["death-info"] = function(d) {
+    if (d.death.length == 0)
+        addMessage("昨天晚上是平安夜")
+    else if (d.death.length == 1)
+        addMessage("昨天晚上， " + d.death[0] + " 死了")
+    else if (d.death.length == 2)
+        addMessage("昨天晚上双死， " + d.death[0] +" 和 "+ d.death[1] + " 死了")
+    addBreakLine()
+}
+
+doType["handover-button"] = function(d) {
+    chooseName = addChoose("choose-handover", "把警徽移交给", d.players)
+    handover = addButton("handover", "给TA", "btn-warning")
+    handover.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type:"choose-handover", action: "handover",
+                name: sel}, function(data, status) {
+                console.log("post choose handover", data, status)
+                handover.remove()
+                tear.remove()
+        })
+    })
+
+    tear = addButton("tear", "不使用药物", "btn-default")
+    tear.click(function() {
+        $.post("/api/send_message", {type: "choose-handover", action: "tear"},
+            function(data, status) {
+                console.log("post choose tear", data, status)
+                handover.remove()
+                tear.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["handover-info"] = function(d) {
+    if (d.tear)
+        addMessage("警徽被撕毁了。")
+    eles
+        addMessage("警徽移交给了 " + d.name + "。")
+}
+
+doType["start-exile-button"] = function(d) {
+    btn = addButton("start-exile", "发言结束，开始投票", "btn-warning")
+    btn.click(function() {
+        $.post("/api/send_message", {type:"start-exile"}, function(data,status){
+            console.log("post start exile", data, status)
+            btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["exile-vote"] = function(d) {
+    chooseName = addChoose("exile-vote", "选择你要投票出局的人", d.players)
+    btn = addButton("exile-vote", "投TA", "btn-warning")
+    btn.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type: "exile-vote", name: sel},
+            function(data, status) {
+               console.log("post exile vote", data, status)
+               btn.remove()
+        })
+    })
+    addBreakLine()
+}
+
+/* UTILITY */
+counter = 0
+function addChoose(name, text, options) {
+    name = name + counter
+    counter += 1
+    html = "<div> <p>" + text + "</p>"
+    for (i = 0; i < options.length; i++)
+        html += "<label class=\"radio-inline\">"
+                + "<input type=\"radio\" name=\"" + name + "\" value=\""
+                + options[i] + "\">" + options[i]
+                + "</label>" + "\n"
+    html += "</div> <p></p>"
+    $("#message").append(html)
+    return name
+}
+
+function addButton(id, text, cssCla) {
+    id = id + counter
+    counter += 1
+    $("#message").append("<button id=\"" + id + "\" class=\"btn " +
+            cssCla + "\">" + text + "</button>\n")
+    return $("#" + id)
+}
+
+function addMessage(text) {
+    $("#message").append("<p>" + text + "</p>")
+}
+
+function addBreakLine() { $("#message").append("<hr>") }
+
+
+</script>
+
+{% endblock %}
+
