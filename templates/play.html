@@ -32,24 +32,35 @@
 <script>
 
 function getNext() {
+    var connected = false
     $.get("/api/get_message", function(d) {
+        connected = true
         msg = d.messages
         var i
         for (i = 0; i < msg.length; i++) {
             console.log(i, msg[i])
+            if (msg[i].type != "start-elect-button" &&
+                msg[i].type != "player-info")
+                $("#message button").remove()
             doType[msg[i].type](msg[i])
         }
+        // scroll to bottom
         if (msg.length != 0)
             $("html, body").animate({ scrollTop: $(document).height() }, 1000);
-        // scroll to bottom
-        setTimeout(getNext, 1250);
+
+        clearTimeout(offlineCheck)
+        setTimeout(getNext, 1500);
     })
+    var offlineCheck = setTimeout(function() {
+        if (!connected)
+            location.reload()
+    }, 6000)
 }
 
 $(document).ready(function() {
     addBreakLine()
     $.post("/api/enter_room", function(data, status) {
-        setTimeout(getNext, 1000)
+        setTimeout(getNext, 1500)
     })
 })
 
