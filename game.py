@@ -206,6 +206,9 @@ class Game:
     def enterRoom(self, name):
         self.deliver.reloadHistory(name)
 
+    def quitRoom(self, name):
+        del self.players[name]
+
     def start(self):
         self.allocateRole()
         self.state = Game.GST_START
@@ -609,5 +612,5 @@ class Game:
         return info
 
     def close(self):
+        self.sendAll({"type": "room-closed"})
         self.__init__()
-

@@ -73,7 +73,6 @@ def api_host_start_game():
 def api_host_close_room():
     if (not game.checkHost(session['name'])):
         return ""
-
     game.close()
     return redirect(url_for("index"))
 
@@ -94,6 +93,11 @@ def api_enter_romm():
     name = session['name']
     game.enterRoom(name)
     return "hello"
+
+@app.route('/api/quit_room', methods=['GET'])
+def api_quit_room():
+    name = session['name']
+    game.quitRoom(name)
 
 #
 # GAME ROOM
