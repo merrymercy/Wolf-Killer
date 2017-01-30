@@ -41,10 +41,13 @@ class JoinForm(Form):
 # REDIRECT FOR ALL ENTRY
 #
 def redirectAll(session, now):
+    global game
     if (not pdb.exist(session.get('name'))):
         goto = 'index'
     else:
         pl = pdb.players[session['name']]
+        if (game.state == game.GST_ROOM_CLOSED):
+            game = Game()
         if (game.checkPlayer(pl.username)):
             goto = 'room_play'
         else:
@@ -88,16 +91,17 @@ def api_send_message():
     game.doStage(session['name'], request.values)
     return jsonify({'messages': 'success'})
 
-@app.route('/api/enter_room', methods=['GET'])
+@app.route('/api/enter_room', methods=['GET', 'POST'])
 def api_enter_romm():
     name = session['name']
     game.enterRoom(name)
     return "hello"
 
-@app.route('/api/quit_room', methods=['GET'])
+@app.route('/api/quit_room', methods=['GET', 'POST'])
 def api_quit_room():
     name = session['name']
     game.quitRoom(name)
+    return "bye"
 
 #
 # GAME ROOM
@@ -112,6 +116,7 @@ def room_play():
 
 @app.route('/lobby', methods=['GET', 'POST'])
 def lobby():
+    global game
     goto = redirectAll(session, 'lobby')
     if (goto):
         return redirect(url_for(goto))
@@ -123,6 +128,7 @@ def lobby():
 
     if game.state == Game.GST_NEWGAME:
         if cfgForm.validate_on_submit():
+            game = Game()
             game.setConfig(GameConfig(wolfCnt = cfgForm.wolfCnt.data,
               vilCnt = cfgForm.vilCnt.data, guardEn = cfgForm.guardEn.data,
               witchEn = cfgForm.witchEn.data, hunterEn = cfgForm.hunterEn.data,
@@ -163,8 +169,9 @@ def index():
 ##### QUICK TEST #####
 @app.route('/test/host', methods=['GET'])
 def test_host():
-    n = 6
-    cfg = GameConfig(1, 1, True, True, True, True)
+    global game
+    n = 7
+    cfg = GameConfig(2, n-6, True, True, True, True)
 
     # create players
     pdb.addPlayer('asdf', 'asdf')
@@ -176,6 +183,7 @@ def test_host():
     #pdb.addPlayer('蛤', 'h')
 
     # start game
+    game = Game()
     game.setConfig(cfg)
     game.state = Game.GST_WAIT_JOIN
     game.setHost(pdb.get('asdf'))

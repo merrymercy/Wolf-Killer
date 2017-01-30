@@ -48,7 +48,7 @@ function getNext() {
 
 $(document).ready(function() {
     addBreakLine()
-    $.get("/api/enter_room", function(d) {
+    $.post("/api/enter_room", function(data, status) {
         setTimeout(getNext, 1000)
     })
 })
@@ -60,13 +60,14 @@ doType["host-control-panel"] = function (d) {
     $("#host-control-panel").css("display", "")
     $("#close-room").click(function() {
         if (confirm("确定关闭房间吗？")) {
-            $.post("/api/host/close_room")
-            setTimeout(function() { window.location="/" }, 500);
+            $.post("/api/host/close_room", function(data, status) {
+                setTimeout(function() { window.location="/" }, 500);
+            })
         }
     })
 
     $("#start-game").click(function() {
-        $.post("/api/host/start_game", function(d) {
+        $.post("/api/host/start_game", function(data, status) {
             console.log("start game", d)
         })
     })
@@ -76,8 +77,10 @@ doType["player-control-panel"] = function(d) {
     $("#player-control-panel").css("display", "")
     $("#quit-room").click(function() {
         if (confirm("确定离开房间吗？")) {
-            $.post("/api/host/quit_room")
-            setTimeout(function() { window.location="/" }, 500);
+            $.post("/api/quit_room", function(data, status) {
+                console.log("quit room", data, status)
+                setTimeout(function() { window.location="/" }, 500);
+            })
         }
     })
 }
@@ -120,6 +123,11 @@ doType["close-eye-button"] = function(d) {
             btn.remove()
         })
     })
+    addBreakLine()
+}
+
+doType["night-come"] = function(d) {
+    addMessage("天黑，请闭眼...")
     addBreakLine()
 }
 
@@ -269,16 +277,20 @@ doType["elect-button"] = function(d) {
 }
 
 doType["elect-info"] = function(d) {
-    html = d.players[0]
-    for (i = 1; i < d.players.length; i++)
-        html += ", " + d.players[i]
+    if (d.players.length == 0) {
+        html = "没有人"
+    } else {
+        html = d.players[0]
+        for (i = 1; i < d.players.length; i++)
+            html += ", " + d.players[i]
+    }
  
     addMessage(html + " 参加警长竞选"); addBreakLine()
 }
 
 // 退水
 doType["down-water-button"] = function(d) {
-    btn = addButton("down-water", "退水", "btn-warning")
+    var btn = addButton("down-water", "退水", "btn-warning")
     btn.click(function() {
         $.post("/api/send_message", {"type": "down-water"},
             function(data, status) {
@@ -291,7 +303,7 @@ doType["down-water-button"] = function(d) {
 
 // 开始竞选按钮
 doType["start-elect-button"] = function(d) {
-    btn = addButton("start-elect", "竞选发言结束，开始警长投票", "btn-warning")
+    var btn = addButton("start-elect", "竞选发言结束，开始警长投票", "btn-warning")
     btn.click(function() {
         $.post("/api/send_message", {type:"start-elect"}, function(data,status){
             console.log("post start elect")
@@ -373,6 +385,21 @@ doType["handover-info"] = function(d) {
         addMessage("警徽被撕毁了")
     else
         addMessage("警徽移交给了 " + d.name + "")
+    addBreakLine()
+}
+
+doType["status-table"] = function(d) {
+    html = "<table class=\"table\"> <caption>玩家状态</caption> <thead> <tr> <th width=\"50\">编号</th> <th width=\"150\">昵称</th> <th>状态</th> </tr> </thead> <tbody>"
+    for (i = 0; i < d.number.length; i++) {
+        row = "<tr class=\"" + d.color[i] + "\">"
+        row += "<td>" + d.number[i] + "</td>"
+        row += "<td>" + d.name[i] + "</td>"
+        row += "<td>" + d.status[i] + "</td>"
+        row += "</tr>"
+        html += row
+    }
+    html += "</tbody> </table>"
+    $("#message").append(html)
     addBreakLine()
 }
 
