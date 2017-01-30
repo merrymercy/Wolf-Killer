@@ -148,6 +148,8 @@ class Game:
     WIN_GOOD = 0
     WIN_WOLF = 1
 
+    ABSTAIN = "(!%##&##@"
+
     def __init__(self):
         self.state = Game.GST_NEWGAME
         self.host  = None
@@ -244,10 +246,7 @@ class Game:
             self.players[pls[i]].setRole(Role.WOLF)
             self.wolves.append(pls[i])
             i += 1
-        team = "队友： " + self.wolves[0]
-        for j in range(1,len(self.wolves)):
-            team += "， " + (self.wolves[j])
-
+        team = "团队： " + '， '.join(self.wolves)
         self.sendMany(self.wolves, {'type':'role', 'role': '狼人（' +team+ '）'})
         while (i < cfg.wolfCnt + cfg.vilCnt):
             self.players[pls[i]].setRole(Role.VILLAGER)
@@ -275,7 +274,8 @@ class Game:
             self.sendPlayer(pls[i], {'type':'role', 'role':'预言家'})
             i += 1
 
-        self.sendHost({'type': 'role-info', 'info': self.printRoles()})
+        #self.sendHost({'type': 'role-info', 'info': self.printRoles()})
+        self.sendAll({'type': 'role-info', 'info': self.printRoleNumber()})
         self.sendHost({'type':'ingame-button'})
 
         '''self.guard = self.host
@@ -398,8 +398,9 @@ class Game:
                         self.players[self.beKilled].doDie()
                         gg, winner = self.checkWin()
                         if (gg):
+                            self.die = [self.beKilled]
                             self.players[self.beKilled].die("夜里")
-                            self.state = Game.GST_GAME_OVER
+                            self.state = Game.GST_SEND_DEATH
                         else:
                             self.players[self.beKilled].undoDie()
                             self.state = Game.GST_SEND_WITCH
@@ -531,6 +532,7 @@ class Game:
                             self.state = Game.GST_SEND_DEATH
                         again = True
 
+            # DEATH_INFO
             elif (self.state == Game.GST_SEND_DEATH):
                 self.sendAll({"type": "death-info", "death": self.die,
                               "day" : self.day})
@@ -587,12 +589,14 @@ class Game:
             elif (self.state == Game.GST_WAIT_HANDOVER):
                 if (data.get("type")=="choose-handover" and name==self.police):
                     if (data.get("action") == "handover"):
+                        old = self.police
                         self.police = data.get("name")
                         self.sendAll({"type": "handover-info", "tear": False,
-                                      "name": self.police})
+                                      "from": old, "to": self.police})
                     elif (data.get("action") == "tear"):
+                        self.sendAll({"type": "handover-info", "tear": True,
+                                      "name": self.police})
                         self.police = None
-                        self.sendAll({"type": "handover-info", "tear": True})
                     self.state = self.normalState
                     again = True
 
@@ -747,7 +751,8 @@ class Game:
         self.options = options
         self.ballot = {}
     def setVote(self, name, to):
-        if ((not name in self.voters) or (not to in self.options)):
+        if (to != Game.ABSTAIN and ((not name in self.voters) or
+            (not to in self.options))):
             return False
         self.ballot[name] = to
         if (len(self.ballot) == len(self.voters)):
@@ -757,7 +762,8 @@ class Game:
         for item in self.options:
             acc[item] = 0
         for item in self.ballot:
-            acc[self.ballot[item]] += 1
+            if (self.ballot[item] != Game.ABSTAIN):
+                acc[self.ballot[item]] += 1
 
         maxi = -1
         for item in acc:
@@ -780,6 +786,21 @@ class Game:
         info += "witch: " + str(self.witch) + '\n'
         info += "prophet: " + str(self.pro) + '\n'
         print(info)
+        return info
+    def printRoleNumber(self):
+        info = ""
+        info += "狼人： " + str((self.cfg.wolfCnt)) + '； '
+        info += "村民： " + str((self.cfg.vilCnt)) + '； '
+        gods = []
+        if (self.cfg.guardEn):
+            gods.append('守卫')
+        if (self.cfg.hunterEn):
+            gods.append('猎人')
+        if (self.cfg.witchEn):
+            gods.append('女巫')
+        if (self.cfg.proEn):
+            gods.append('预言家')
+        info += "神： " + "， ".join(gods)
         return info
 
     def close(self):

@@ -39,26 +39,25 @@ function getNext() {
         var i
         for (i = 0; i < msg.length; i++) {
             console.log(i, msg[i])
-            if (msg[i].type != "start-elect-button" &&
-                msg[i].type != "player-info")
-                $("#message button").remove()
             doType[msg[i].type](msg[i])
+            if (msg[i].type != "down-water-button")
+                clearButton = true
         }
         // scroll to bottom
+        removeDoubleLine()
         if (msg.length != 0)
             $("html, body").animate({ scrollTop: $(document).height() }, 1000);
-
         clearTimeout(offlineCheck)
         setTimeout(getNext, 1500);
     })
     var offlineCheck = setTimeout(function() {
-        if (!connected)
-            location.reload()
+        alert("掉线了，请刷新")
     }, 6000)
 }
 
 $(document).ready(function() {
     addBreakLine()
+    ABSTAIN = "(!%##&##@"
     $.post("/api/enter_room", function(data, status) {
         setTimeout(getNext, 1500)
     })
@@ -181,8 +180,8 @@ doType["pro-info"] = function(d) {
 }
 
 doType["kill-button"] = function(d) {
-    chooseName = addChoose("choose-kill", "选择要下刀的目标", d.players)
-    btn = addButton("kill", "下刀", "btn-warning")
+    chooseName = addChoose("choose-kill", "选择要杀的人", d.players)
+    btn = addButton("kill", "刀TA", "btn-warning")
     btn.click(function() {
         sel = $("input:radio[name=" + chooseName + "]:checked").val()
         if (sel == null) { return }
@@ -273,10 +272,21 @@ doType["hunter-info"] = function(d) {
 }
 
 doType["vote-result"] = function(d) {
+    var voters = {}
     info = ""
+
     for (var key in d.ballot) {
-        info += (key + " 投给 " + d.ballot[key]) + "<br>"
+        if (!voters[d.ballot[key]])
+            voters[d.ballot[key]] = []
+        voters[d.ballot[key]].push(key)
     }
+    for (var opt in voters) {
+        if (opt != ABSTAIN)
+            info += voters[opt].join("， ") + " 投给 " + opt + "<br>"
+    }
+    if (voters[ABSTAIN])
+        info += voters[opt].join("， ") + " 弃权<br>"
+
     if (d.tie)
         info += " 平票，重投"
     else
@@ -367,23 +377,32 @@ doType["one-police-info"] = function(d) {
 
 doType["elect-vote"] = function(d) {
     if (downwater) downwater.remove()
-    chooseName = addChoose("elect-vote", "竞选警长", d.players)
+    chooseName = addChoose("elect-vote", "警长投票", d.players)
     btn = addButton("elect-vote", "选TA", "btn-warning")
+    pass = addButton("pass", "弃权", "btn-default")
     btn.click(function() {
         sel = $("input:radio[name=" + chooseName + "]:checked").val()
         if (sel == null) { return }
 
-        $.post("/api/send_message", {type:"elect-vote", name: sel},
+        $.post("/api/send_message", {type: "elect-vote", name: sel},
             function(data, status) {
                 console.log("post elect vote", data, status)
-                btn.remove()
+                btn.remove(); pass.remove()
         })
     })
+    pass.click(function() {
+        $.post("/api/send_message", {type: "elect-vote", name: ABSTAIN},
+            function(data, status) {
+                console.log("post elect pass", data, status)
+                btn.remove(); pass.remove()
+        })
+    })
+
     addBreakLine()
 }
 
 doType["day-info"] = function(d) {
-     addMessage("===============第" + d.day + "天===============")
+     addMessage("=============== 天亮了，第" + d.day + "天 ===============")
      addBreakLine()
 }
 doType["death-info"] = function(d) {
@@ -425,14 +444,14 @@ doType["handover-button"] = function(d) {
 
 doType["handover-info"] = function(d) {
     if (d.tear)
-        addMessage("警徽被撕毁了")
+        addMessage("警徽被 " + d.name + " 撕毁了")
     else
-        addMessage("警徽移交给了 " + d.name + "")
+        addMessage("警徽从 " + d.from + " 移交到了 " + d.to)
     addBreakLine()
 }
 
 doType["status-table"] = function(d) {
-    html = "<table class=\"table\"> <caption>玩家状态</caption> <thead> <tr> <th width=\"50\">编号</th> <th width=\"150\">昵称</th> <th>状态</th> </tr> </thead> <tbody>"
+    html = "<table class=\"table\"><thead> <tr> <th width=\"50\">编号</th> <th width=\"150\">昵称</th> <th>状态</th> </tr> </thead> <tbody>"
     for (i = 0; i < d.number.length; i++) {
         row = "<tr class=\"" + d.color[i] + "\">"
         row += "<td>" + d.number[i] + "</td>"
@@ -478,6 +497,7 @@ doType["exile-vote"] = function(d) {
     if (boom) boom.remove()
     chooseName = addChoose("exile-vote", "选择你要投票出局的人", d.players)
     btn = addButton("exile-vote", "投TA", "btn-warning")
+    pass = addButton("pass", "弃权", "btn-default")
     btn.click(function() {
         sel = $("input:radio[name=" + chooseName + "]:checked").val()
         if (sel == null) { return }
@@ -485,7 +505,14 @@ doType["exile-vote"] = function(d) {
         $.post("/api/send_message", {type: "exile-vote", name: sel},
             function(data, status) {
                console.log("post exile vote", data, status)
-               btn.remove()
+               btn.remove(); pass.remove()
+        })
+    })
+    pass.click(function() {
+        $.post("/api/send_message", {type:"exile-vote", name: ABSTAIN},
+            function(data, status) {
+               console.log("post exile pass", data, status)
+               btn.remove(); pass.remove()
         })
     })
     addBreakLine()
@@ -528,6 +555,10 @@ function addChoose(name, text, options) {
 }
 
 function addButton(id, text, cssCla) {
+    if (clearButton) {
+        clearButton = false
+        $("#message button").remove()
+    }
     id = id + counter
     counter += 1
     $("#message").append("<button id=\"" + id + "\" class=\"btn " +
@@ -540,6 +571,15 @@ function addMessage(text) {
 }
 
 function addBreakLine() { $("#message").append("<hr>") }
+
+function removeDoubleLine() {
+    hrs = $("hr")
+    for (j = 0; j < hrs.length; j++) {
+        if (hrs[j].nextElementSibling && hrs[j].nextElementSibling.tagName
+                                                                 == "HR")
+            hrs[j].remove()
+    }
+}
 
 
 </script>
