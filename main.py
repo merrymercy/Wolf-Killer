@@ -4,7 +4,7 @@ from flask import Flask, render_template, session, request, redirect, url_for, f
 from flask_script import Manager
 from flask_bootstrap import Bootstrap
 from flask_wtf import Form
-from wtforms import StringField, IntegerField, BooleanField, SubmitField
+from wtforms import StringField, IntegerField, BooleanField, SubmitField, RadioField
 from wtforms.validators import Required
 
 from game import *
@@ -31,6 +31,8 @@ class GameConfigForm(Form):
     guardEn = BooleanField('守卫')
     hunterEn = BooleanField('猎人')
     proEn = BooleanField('预言家')
+    metric = RadioField('选择胜利方式', choices=[('side', '屠边'),
+        ('all', '屠城')], default='side', validators = [Required()])
 
     submit = SubmitField('新建游戏')
 
@@ -132,7 +134,8 @@ def lobby():
             game.setConfig(GameConfig(wolfCnt = cfgForm.wolfCnt.data,
               vilCnt = cfgForm.vilCnt.data, guardEn = cfgForm.guardEn.data,
               witchEn = cfgForm.witchEn.data, hunterEn = cfgForm.hunterEn.data,
-              proEn = cfgForm.proEn.data))
+              proEn = cfgForm.proEn.data, metric = cfgForm.metric.data))
+            print("win metric", cfgForm.metric.data)
             game.state = Game.GST_WAIT_JOIN
             game.setHost(pl)
             return redirect(url_for('room_play'))
@@ -170,8 +173,9 @@ def index():
 @app.route('/test/host', methods=['GET'])
 def test_host():
     global game
-    n = 7
-    cfg = GameConfig(2, n-6, True, True, True, True)
+    n = 4
+    #cfg = GameConfig(2, n-6, True, True, True, True, 'all')
+    cfg = GameConfig(2, 2, False, False, False, False, 'all')
 
     # create players
     pdb.addPlayer('asdf', 'asdf')
@@ -212,6 +216,3 @@ def test_witch():
 
 if __name__ == '__main__':
     manager.run()
-
-
-

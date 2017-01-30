@@ -231,6 +231,36 @@ doType["witch-button"] = function(d) {
     addBreakLine()
 }
 
+doType["choose-hunter"] = function(d) {
+    chooseName = addChoose("choose-hunter", "你可以带走一个人", d.players)
+    hunter = addButton("hunter", "开枪", "btn-warning")
+    hunter.click(function() {
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (sel == null) { return }
+
+        $.post("/api/send_message", {type:"choose-hunter", action:"hunter",
+            name: sel}, function(data, status) {
+                console.log("post choose hunter", data, status)
+                hunter.remove()
+                pass.remove()
+        })
+    })
+    pass = addButton("pass", "不开枪", "btn-default")
+    pass.click(function() {
+        $.post("/api/send_message", {type:"choose-hunter", action:"pass"},
+            function(data, status) {
+                console.log("post choose pass", data, status)
+                pass.remove()
+                hunter.remove()
+        })
+    })
+    addBreakLine()
+}
+
+doType["hunter-info"] = function(d) {
+    addMessage(d.from + "开枪，带走了" + d.to); addBreakLine()
+}
+
 doType["vote-result"] = function(d) {
     info = ""
     for (var key in d.ballot) {
@@ -286,16 +316,17 @@ doType["elect-info"] = function(d) {
     }
  
     addMessage(html + " 参加警长竞选"); addBreakLine()
+    downwater = null
 }
 
 // 退水
 doType["down-water-button"] = function(d) {
-    var btn = addButton("down-water", "退水", "btn-warning")
-    btn.click(function() {
+    downwater = addButton("down-water", "退水", "btn-warning")
+    downwater.click(function() {
         $.post("/api/send_message", {"type": "down-water"},
             function(data, status) {
                 console.log("post down-water", data, status)
-                btn.remove()
+                downwater.remove()
         })
     })
     addBreakLine()
@@ -324,6 +355,7 @@ doType["one-police-info"] = function(d) {
 }
 
 doType["elect-vote"] = function(d) {
+    if (downwater) downwater.remove()
     chooseName = addChoose("elect-vote", "竞选警长", d.players)
     btn = addButton("elect-vote", "选TA", "btn-warning")
     btn.click(function() {
@@ -401,20 +433,38 @@ doType["status-table"] = function(d) {
     html += "</tbody> </table>"
     $("#message").append(html)
     addBreakLine()
+    boom = exile = null
+}
+
+doType["boom-button"] = function(d) {
+    boom = addButton("boom", "自爆", "btn-warning")
+    boom.click(function() {
+        $.post("/api/send_message", {type: "choose-boom"},
+            function(data, status) {
+                console.log("post boom", data, status)
+                boom.remove()
+        })
+    })
+}
+
+doType["boom-info"] = function(d) {
+    if (exile) exile.remove()
+    addMessage(d.name + " 自爆了"); addBreakLine();
 }
 
 doType["start-exile-button"] = function(d) {
-    btn = addButton("start-exile", "发言结束，开始投票", "btn-warning")
-    btn.click(function() {
+    exile = addButton("start-exile", "发言结束，开始投票", "btn-warning")
+    exile.click(function() {
         $.post("/api/send_message", {type:"start-exile"}, function(data,status){
             console.log("post start exile", data, status)
-            btn.remove()
+            exile.remove()
         })
     })
     addBreakLine()
 }
 
 doType["exile-vote"] = function(d) {
+    if (boom) boom.remove()
     chooseName = addChoose("exile-vote", "选择你要投票出局的人", d.players)
     btn = addButton("exile-vote", "投TA", "btn-warning")
     btn.click(function() {
@@ -427,6 +477,26 @@ doType["exile-vote"] = function(d) {
                btn.remove()
         })
     })
+    addBreakLine()
+}
+
+doType["game-over"] = function(d) {
+    addMessage(d.winner + "阵营胜利")
+}
+
+doType["game-statistic"] = function(d) {
+     html = "<table class=\"table\"> <thead> <tr> <th width=\"50\">编号</th> <th width=\"100\">昵称</th> <th width=\"80\">角色</th> <th>最后状态</th> </tr> </thead> <tbody>"
+    for (i = 0; i < d.number.length; i++) {
+        row = "<tr class=\"" + d.color[i] + "\">"
+        row += "<td>" + d.number[i] + "</td>"
+        row += "<td>" + d.name[i] + "</td>"
+        row += "<td>" + d.role[i] + "</td>"
+        row += "<td>" + d.status[i] + "</td>"
+        row += "</tr>"
+        html += row
+    }
+    html += "</tbody> </table>"
+    $("#message").append(html)
     addBreakLine()
 }
 

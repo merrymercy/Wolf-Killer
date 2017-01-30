@@ -1,4 +1,4 @@
 Wolf Killer
 ======
 
-a game
+A poor implement for the board-game Werewolf

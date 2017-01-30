@@ -4,13 +4,14 @@ import random
 import uuid
 
 class GameConfig:
-    def __init__(self, wolfCnt, vilCnt, witchEn, guardEn, hunterEn, proEn):
+    def __init__(self, wolfCnt, vilCnt, witchEn, guardEn, hunterEn, proEn, metric):
         self.wolfCnt = wolfCnt
         self.vilCnt  = vilCnt
         self.witchEn = witchEn
         self.guardEn = guardEn
         self.hunterEn = hunterEn
         self.proEn = proEn
+        self.metric = metric
 
 class Role:
     WOLF = 0
@@ -20,6 +21,9 @@ class Role:
     HUNTER = 4
     PROPHET = 5
     EMPTY = 6
+
+    Role2Str = {WOLF: "狼人", VILLAGER: "普通村民", WITCH: "女巫",
+               GUARD: "守卫", HUNTER: "猎人", PROPHET: "预言家" }
 
 class PlayerDatabase:
     def __init__(self):
@@ -63,8 +67,15 @@ class Player:
         self.alive = False
         self.deathCause = deathCause
 
+    def doDie(self):
+        self.alive = False
+    def undoDie(self):
+        self.alive = True
+
     def getCause(self):
         return self.deathCause
+    def getRole(self):
+        return Role.Role2Str[self.role]
 
 class Engine:
     def __init__(self):
@@ -98,8 +109,6 @@ class Deliver:
             self.to[username] = []
             return tmp
 
-
-
 class Game:
     GST_NEWGAME   = 0
     GST_WAIT_JOIN = 1
@@ -131,9 +140,13 @@ class Game:
     GST_SEND_EXILE_INFO = 27
     GST_SEND_HUNTER = 28
     GST_WAIT_HUNTER = 29
+    GST_SOMEONE_DIE = 30
 
+    GST_GAME_OVER = 98
     GST_ROOM_CLOSED = 99
 
+    WIN_GOOD = 0
+    WIN_WOLF = 1
 
     def __init__(self):
         self.state = Game.GST_NEWGAME
@@ -213,7 +226,6 @@ class Game:
         self.deliver.reloadHistory(name)
 
     def quitRoom(self, name):
-        print("haha")
         del self.players[name]
         self.sendAll({'type': 'player-info', 'players': self.getPlayers()})
 
@@ -233,8 +245,8 @@ class Game:
             self.wolves.append(pls[i])
             i += 1
         team = "队友： " + self.wolves[0]
-        for i in range(1,len(self.wolves)):
-            team += "， " + (self.wolves[i])
+        for j in range(1,len(self.wolves)):
+            team += "， " + (self.wolves[j])
 
         self.sendMany(self.wolves, {'type':'role', 'role': '狼人（' +team+ '）'})
         while (i < cfg.wolfCnt + cfg.vilCnt):
@@ -265,11 +277,10 @@ class Game:
 
         self.sendHost({'type': 'role-info', 'info': self.printRoles()})
         self.sendHost({'type':'ingame-button'})
-        '''
-        self.guard = self.host
+
+        '''self.guard = self.host
         self.witch = self.host
-        self.pro   = self.host
-        '''
+        self.pro   = self.host'''
 
     def getAlive(self):
         names = []
@@ -286,7 +297,13 @@ class Game:
     def getGuardList(self):
         names = []
         for item in self.players:
-            if self.players[item].isAlive() and item != self.lastGuard:
+            if (self.players[item].isAlive() and item != self.lastGuard):
+                names.append(item)
+        return names
+    def getHunterList(self):
+        names = []
+        for item in self.players:
+            if (self.players[item].isAlive() and item != self.hunter):
                 names.append(item)
         return names
 
@@ -299,6 +316,9 @@ class Game:
             if (self.state == Game.GST_START):
                 self.state = Game.GST_SEND_CLOSE_EYE
                 #self.state = Game.GST_SEND_EXILE
+                #self.state = Game.GST_GAME_OVER
+                #for item in self.vils:
+                    #self.players[item].die("")
                 again = True
             
             #====== CLOSE EYE ======#
@@ -310,11 +330,11 @@ class Game:
                 if (data.get("type") == "close-eye" and self.checkHost(name)):
                     self.state = Game.GST_SEND_GUARD
                     again = True
-                    self.sendAll({"type": "night-come"})
 
             #====== NIGHT ======#
             # GUARD
             elif (self.state == Game.GST_SEND_GUARD):
+                self.sendAll({"type": "night-come"})
                 if (self.cfg.guardEn and self.players[self.guard].isAlive()):
                     self.sendPlayer(self.guard, {"type": "guard-button",
                         "players": self.getGuardList()})
@@ -373,7 +393,18 @@ class Game:
                         else:
                             print(self.beKilled, "be chosen to kill")
                             self.state = Game.GST_SEND_WITCH
+
+                        # do death for check win
+                        self.players[self.beKilled].doDie()
+                        gg, winner = self.checkWin()
+                        if (gg):
+                            self.players[self.beKilled].die("夜里")
+                            self.state = Game.GST_GAME_OVER
+                        else:
+                            self.players[self.beKilled].undoDie()
+                            self.state = Game.GST_SEND_WITCH
                         again = True
+
             # WITCH
             elif (self.state == Game.GST_SEND_WITCH):
                 if (self.cfg.witchEn and self.players[self.witch].isAlive()):
@@ -506,22 +537,43 @@ class Game:
                 for item in self.die:
                     self.players[item].die("夜里")
 
+                gg, winner = self.checkWin()
+                if (gg):
+                    self.state = Game.GST_GAME_OVER
+                else:
+                    # backup state after hunter and police handover
+                    self.normalState = Game.GST_SEND_EXILE
+                    self.state = Game.GST_SEND_HUNTER # 结算猎人和警徽
+                again = True
 
-                if self.hunter in self.die and self.hunter != self.bePoisoned:
-                    self.hunterNext = Game.GST_SEND_HANDOVER
-                    self.state = Game.GST_SEND_HUNTER
+            # HUNTER
+            elif (self.state == Game.GST_SEND_HUNTER):
+                if (self.cfg.hunterEn and self.hunter in self.die):
+                    self.sendPlayer(self.hunter, {"type":"choose-hunter",
+                            "players" : self.getHunterList()})
+                    self.state = Game.GST_WAIT_HUNTER
                     again = True
                 else:
                     self.state = Game.GST_SEND_HANDOVER
                     again = True
-
-            elif (self.state == Game.GST_SEND_HUNTER):
-                self.sendPlayer(self.hunter, {"type":"choose-hunter"})
-                self.state = Game.GST_WAIT_HUNTER
-                again = True
             elif (self.state == Game.GST_WAIT_HUNTER):
-                pass
+                if (data.get("type") == "choose-hunter" and name==self.hunter):
+                    if (data.get("action") == "hunter"):
+                        to = data.get("name")
+                        self.die.append(to)
+                        self.players[to].die("猎杀")
+                        self.sendAll({"type": "hunter-info", "from":self.hunter,
+                                                             "to": to})
+                        gg, winner = self.checkWin()
+                        if (gg):
+                            self.state = Game.GST_GAME_OVER
+                        else:
+                            self.state = Game.GST_SEND_HANDOVER
+                    else:
+                        self.state = Game.GST_SEND_HANDOVER
+                    again = True
 
+            # HANDOVER OF POLICE
             elif (self.state == Game.GST_SEND_HANDOVER): # 移交/撕毁警徽
                 if (self.police in self.die):
                     print("police", self.police, "die")
@@ -530,7 +582,7 @@ class Game:
                     self.state = Game.GST_WAIT_HANDOVER
                 else:
                     print("police", self.police, "alive")
-                    self.state = Game.GST_SEND_EXILE
+                    self.state = self.normalState
                     again = True
             elif (self.state == Game.GST_WAIT_HANDOVER):
                 if (data.get("type")=="choose-handover" and name==self.police):
@@ -541,7 +593,7 @@ class Game:
                     elif (data.get("action") == "tear"):
                         self.police = None
                         self.sendAll({"type": "handover-info", "tear": True})
-                    self.state = Game.GST_SEND_EXILE
+                    self.state = self.normalState
                     again = True
 
             elif (self.state == Game.GST_SEND_EXILE):  # host开始放逐投票按钮
@@ -565,11 +617,24 @@ class Game:
 
                 self.sendAll({"type": "status-table", "number": number,
                     "name": name, "status": status, "color": color})
+                self.sendMany(self.getAliveWolves(), {"type": "boom-button"})
                 self.sendHost({"type": "start-exile-button"})
                 self.state = Game.GST_WAIT_EXILE
             elif (self.state == Game.GST_WAIT_EXILE):
                 if (data.get("type")=="start-exile" and name==self.host):
                     self.state = Game.GST_SEND_EXILE_VOTE
+                    again = True
+                elif (data.get("type") == "choose-boom" and
+                                                    name in self.wolves):
+                    self.die = [name]
+                    self.players[name].die("自爆")
+                    self.sendAll({"type": "boom-info", "name":name})
+                    gg, winner = self.checkWin()
+                    if (gg):
+                        self.state = Game.GST_GAME_OVER
+                    else:
+                        self.normalState = Game.GST_SEND_GUARD # 直接进入晚上
+                        self.state = Game.GST_SEND_HANDOVER
                     again = True
 
             elif (self.state == Game.GST_SEND_EXILE_VOTE): # 放逐投票
@@ -601,28 +666,92 @@ class Game:
 
             elif (self.state == Game.GST_SEND_EXILE_INFO):
                 #self.sendAll({"type": "exile-info", "name": self.beExiled})
-                self.state = Game.GST_SEND_CLOSE_EYE
+                self.die = [self.beExiled]
                 self.players[self.beExiled].die("投票")
+
+                gg, winner = self.checkWin()
+                if (gg):
+                    self.state = Game.GST_GAME_OVER
+                else:
+                    self.normalState = Game.GST_SEND_CLOSE_EYE # backup state
+                    self.state = Game.GST_SEND_HUNTER # 结算猎人和警徽
                 again = True
 
-            elif (self.state == Game.GST_SEND_HUNTER):
-                pass
-            elif (self.state == Game.GST_WAIT_HUNTER):
-                pass
+            elif (self.state == Game.GST_GAME_OVER):
+                gg, winner = self.checkWin()
+                if (winner == Game.WIN_GOOD):
+                    winner_msg = "好人"
+                else:
+                    winner_msg = "狼人"
+                self.sendAll({"type": "game-over", "winner": winner_msg})
 
+                # STATISTIC
+                number = []; name = []; status = []; color =[]; role = []
+                i = 1
+                for item in self.players:
+                    number.append(i)
+                    name.append(item)
+                    if (self.players[item].isAlive()):
+                        if (item == self.police):
+                            status.append("警长")
+                        else:
+                            status.append("普通")
+                    else:
+                        status.append("死亡（" + self.players[item].getCause()
+                                                                    + "）")
+                    if ((winner == Game.WIN_WOLF and item in self.wolves) or
+                        (winner == Game.WIN_GOOD and (not item in self.wolves))):
+                        color.append("success")
+                    else:
+                        color.append("default")
+                    role.append(self.players[item].getRole())
+                    i = i + 1
 
+                self.sendAll({"type": "game-statistic", "number": number,
+                    "name":name, "status":status, "color":color, "role":role})
+
+    # CHECK WIN
+    def checkWin(self):
+        numWolf = numVil = numGod = 0
+        for item in self.players:
+            if (self.players[item].isAlive()):
+                if (item in self.wolves):
+                    numWolf += 1
+                elif (item in self.vils):
+                    numVil  += 1
+                else:
+                    numGod  += 1
+        # death
+        if (numWolf == 0):
+            return True, Game.WIN_GOOD
+        if (self.cfg.metric == "side"):
+            if (numVil == 0 or numGod == 0):
+                return True, Game.WIN_WOLF
+        else:
+            if (numVil + numGod == 0):
+                return True, Game.WIN_WOLF
+        # vote
+        voteWolf = numWolf; voteGood = numVil + numGod;
+        if (self.police != None and self.players[self.police].isAlive()):
+            if (self.police in self.wolves):
+                voteWolf += 0.5
+            else:
+                voteGood += 0.5
+        if (voteWolf >= voteGood):
+            return True, Game.WIN_WOLF
+        return False, -1
+
+    # UTILITY FOR VOTE
     def newVote(self, voters, options):
         self.voters = voters
         self.options = options
         self.ballot = {}
-
     def setVote(self, name, to):
         if ((not name in self.voters) or (not to in self.options)):
             return False
         self.ballot[name] = to
         if (len(self.ballot) == len(self.voters)):
             return True
-
     def getVoteResult(self):
         acc = {}
         for item in self.options:
