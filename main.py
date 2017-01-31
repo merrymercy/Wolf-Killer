@@ -175,7 +175,7 @@ def test_host():
     global game
     n = 4
     #cfg = GameConfig(2, n-6, True, True, True, True, 'all')
-    cfg = GameConfig(2, 2, False, False, False, False, 'all')
+    cfg = GameConfig(1, 1, True, True, False, False, 'all')
 
     # create players
     pdb.addPlayer('asdf', 'asdf')

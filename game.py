@@ -224,6 +224,8 @@ class Game:
 
     # GAME PROCEDURE
     def enterRoom(self, name):
+        self.sendPlayer(name, {'type': 'role-config',
+                               'info': self.printRoleConfig()})
         self.sendAll({'type': 'player-info', 'players': self.getPlayers()})
         self.deliver.reloadHistory(name)
 
@@ -246,36 +248,29 @@ class Game:
             self.players[pls[i]].setRole(Role.WOLF)
             self.wolves.append(pls[i])
             i += 1
-        team = "团队： " + '， '.join(self.wolves)
-        self.sendMany(self.wolves, {'type':'role', 'role': '狼人（' +team+ '）'})
         while (i < cfg.wolfCnt + cfg.vilCnt):
             self.players[pls[i]].setRole(Role.VILLAGER)
             self.vils.append(pls[i])
-            self.sendPlayer(pls[i], {'type':'role', 'role':'普通村民'})
             i += 1
         if (cfg.witchEn):
             self.players[pls[i]].setRole(Role.WITCH)
             self.witch = pls[i]
-            self.sendPlayer(pls[i], {'type':'role', 'role':'女巫'})
             i += 1
         if (cfg.guardEn):
             self.players[pls[i]].setRole(Role.GUARD)
             self.guard = pls[i]
-            self.sendPlayer(pls[i], {'type':'role', 'role':'守卫'})
             i += 1
         if (cfg.hunterEn):
             self.players[pls[i]].setRole(Role.HUNTER)
             self.hunter = pls[i]
-            self.sendPlayer(pls[i], {'type':'role', 'role':'猎人'})
             i += 1
         if (cfg.proEn):
             self.players[pls[i]].setRole(Role.PROPHET)
             self.pro = pls[i]
-            self.sendPlayer(pls[i], {'type':'role', 'role':'预言家'})
             i += 1
 
         #self.sendHost({'type': 'role-info', 'info': self.printRoles()})
-        self.sendAll({'type': 'role-info', 'info': self.printRoleNumber()})
+        #self.sendAll({'type': 'role-info', 'info': self.printRoleNumber()})
         self.sendHost({'type':'ingame-button'})
 
         '''self.guard = self.host
@@ -314,11 +309,44 @@ class Game:
             print("in state", self.state)
             again = False
             if (self.state == Game.GST_START):
+                # send role table
+                number = []; name = [];
+                wolfRole = []; wolfColor = []
+                blankRole = []; blankColor = []
+                i = 1
+                for item in self.players:
+                    number.append(i)
+                    name.append(item)
+                    if (item in self.wolves):
+                        wolfRole.append("狼人")
+                        wolfColor.append("active")
+                    else:
+                        wolfRole.append("")
+                        wolfColor.append("default")
+                    blankRole.append("")
+                    blankColor.append("default")
+                    i = i + 1
+
+                self.sendMany(self.wolves, {"type": "role-table",
+                                "number": number, "name": name,
+                                "role": wolfRole, "color": wolfColor})
+                i = 0
+                for item in self.players:
+                    if (not item in self.wolves):
+                        role = blankRole[:]
+                        color = blankColor[:]
+                        role[i] = self.players[item].getRole()
+                        color[i] = "active"
+                        self.sendPlayer(item, {"type": "role-table",
+                                "number": number, "name": name,
+                                "role": role, "color": color})
+                    i = i + 1
+
                 self.state = Game.GST_SEND_CLOSE_EYE
-                #self.state = Game.GST_SEND_EXILE
-                #self.state = Game.GST_GAME_OVER
-                #for item in self.vils:
-                    #self.players[item].die("")
+                #self.state = Game.GST_SEND_ELECT
+                #self.police = self.vils[0]
+                #self.die = [self.wolves[0]]
+                #self.state = Game.GST_SEND_DEATH
                 again = True
             
             #====== CLOSE EYE ======#
@@ -479,7 +507,25 @@ class Game:
                         again = True
 
             elif (self.state == Game.GST_SEND_DOWN_WATER): # 退水，开始投票
-                self.sendAll({"type": "elect-info", "players": self.candidates})
+                #self.sendAll({"type": "elect-info", "players": self.candidates})
+
+                # send elect table
+                number = []; name = [];
+                status = []; color = []
+                i = 1
+                for item in self.players:
+                    number.append(i); name.append(item)
+                    if (item in self.candidates):
+                        status.append("上警")
+                        color.append("active")
+                    else:
+                        status.append("")
+                        color.append("default")
+                    i = i + 1
+
+                self.sendAll({"type": "elect-table", "number": number,
+                    "name": name, "status": status, "color": color})
+
                 self.sendMany(self.candidates, {"type": "down-water-button"})
                 self.sendHost({"type": "start-elect-button"})
                 self.state = Game.GST_WAIT_DOWN_WATER
@@ -787,10 +833,10 @@ class Game:
         info += "prophet: " + str(self.pro) + '\n'
         print(info)
         return info
-    def printRoleNumber(self):
+    def printRoleConfig(self):
         info = ""
-        info += "狼人： " + str((self.cfg.wolfCnt)) + '； '
-        info += "村民： " + str((self.cfg.vilCnt)) + '； '
+        info += str((self.cfg.wolfCnt)) + " 狼人， "
+        info += str(self.cfg.vilCnt) + " 村民， "
         gods = []
         if (self.cfg.guardEn):
             gods.append('守卫')
@@ -800,10 +846,11 @@ class Game:
             gods.append('女巫')
         if (self.cfg.proEn):
             gods.append('预言家')
-        info += "神： " + "， ".join(gods)
+        info += "， ".join(gods)
         return info
 
     def close(self):
         print("send room closed")
         self.sendAll({"type": "room-closed"})
         self.state = Game.GST_ROOM_CLOSED
+

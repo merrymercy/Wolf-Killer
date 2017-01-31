@@ -18,6 +18,7 @@
 <div>
 <h1>玩家列表</h1>
 <ul id="players" class="circle"> </ul>
+<p id="role-config"></p>
 </div>
 
 <div id="message">
@@ -51,7 +52,8 @@ function getNext() {
         setTimeout(getNext, 1500);
     })
     var offlineCheck = setTimeout(function() {
-        alert("掉线了，请刷新")
+        alert("掉线了，自动刷新")
+        location.reload()
     }, 6000)
 }
 
@@ -119,12 +121,22 @@ doType["player-info"] = function(d) {
     $("#players").html(html)
 }
 
+doType["role-config"] = function(d) {
+    $("#role-config").html("配置： " + d.info)
+}
+
+/* PLAY PROCEDURE */
 doType["role"] = function(d) {
     addMessage("你的角色是" + d.role)
     addBreakLine()
 }
 
-/* PLAY PROCEDURE */
+doType["role-table"] = function(d) {
+    addTable("role", ["编号", "昵称", "角色"], [50, 150],
+            [d.number, d.name, d.role], d.color)
+    addBreakLine()
+}
+
 doType["close-eye-button"] = function(d) {
     btn = addButton("close-eye", "天黑 请闭眼", "btn-warning")
     btn.click(function() {
@@ -285,7 +297,7 @@ doType["vote-result"] = function(d) {
             info += voters[opt].join("， ") + " 投给 " + opt + "<br>"
     }
     if (voters[ABSTAIN])
-        info += voters[opt].join("， ") + " 弃权<br>"
+        info += voters[ABSTAIN].join("， ") + " 弃权<br>"
 
     if (d.tie)
         info += " 平票，重投"
@@ -293,10 +305,6 @@ doType["vote-result"] = function(d) {
         info += d.select + " " + d.msg
     addMessage(info)
     addBreakLine()
-}
-
-doType["role-info"] = function(d) {
-    addMessage(d.info); addBreakLine()
 }
 
 // 猎人消息
@@ -336,8 +344,28 @@ doType["elect-info"] = function(d) {
             html += ", " + d.players[i]
     }
  
-    addMessage(html + " 参加警长竞选"); addBreakLine()
+    addMessage(html + " 参加警长竞选，请依次发言"); addBreakLine()
     downwater = null
+}
+
+doType["elect-table"] = function(d) {
+    html = "<table id=\"elect-table\" class=\"table\"><thead> <tr> <th width=\"50\">编号</th> <th width=\"150\">昵称</th> <th>状态</th> </tr> </thead> <tbody>"
+    for (i = 0; i < d.number.length; i++) {
+        row = "<tr id=\"elect-" + d.name[i] + "\" class=\"" + d.color[i] + "\">"
+        row += "<td>" + d.number[i] + "</td>"
+        row += "<td>" + d.name[i] + "</td>"
+        row += "<td>" + d.status[i] + "</td>"
+        row += "</tr>"
+        html += row
+    }
+    html += "</tbody> </table>"
+    $("#message").append(html)
+    addMessage("请按顺序发言")
+    addBreakLine()
+}
+doType["down-water-info"] = function(d) {
+    $("#elect-table #elect-" + d.name).removeClass("active").addClass("warning")
+    $("#elect-table #elect-" + d.name + " td:last").html("退水")
 }
 
 // 退水
@@ -365,9 +393,6 @@ doType["start-elect-button"] = function(d) {
     addBreakLine()
 }
 
-doType["down-water-info"] = function(d) {
-    addMessage(d.name + "退水"); addBreakLine()
-}
 doType["no-police-info"] = function(d) {
     addMessage("没有人竞选警长"); addBreakLine()
 }
@@ -451,17 +476,8 @@ doType["handover-info"] = function(d) {
 }
 
 doType["status-table"] = function(d) {
-    html = "<table class=\"table\"><thead> <tr> <th width=\"50\">编号</th> <th width=\"150\">昵称</th> <th>状态</th> </tr> </thead> <tbody>"
-    for (i = 0; i < d.number.length; i++) {
-        row = "<tr class=\"" + d.color[i] + "\">"
-        row += "<td>" + d.number[i] + "</td>"
-        row += "<td>" + d.name[i] + "</td>"
-        row += "<td>" + d.status[i] + "</td>"
-        row += "</tr>"
-        html += row
-    }
-    html += "</tbody> </table>"
-    $("#message").append(html)
+    addTable("status", ["编号", "昵称", "状态"], [50, 150],
+            [d.number, d.name, d.status], d.color, "请按顺序发言")
     addBreakLine()
     boom = exile = null
 }
@@ -523,18 +539,8 @@ doType["game-over"] = function(d) {
 }
 
 doType["game-statistic"] = function(d) {
-     html = "<table class=\"table\"> <thead> <tr> <th width=\"50\">编号</th> <th width=\"100\">昵称</th> <th width=\"80\">角色</th> <th>最后状态</th> </tr> </thead> <tbody>"
-    for (i = 0; i < d.number.length; i++) {
-        row = "<tr class=\"" + d.color[i] + "\">"
-        row += "<td>" + d.number[i] + "</td>"
-        row += "<td>" + d.name[i] + "</td>"
-        row += "<td>" + d.role[i] + "</td>"
-        row += "<td>" + d.status[i] + "</td>"
-        row += "</tr>"
-        html += row
-    }
-    html += "</tbody> </table>"
-    $("#message").append(html)
+    addTable("statistic", ["编号", "昵称", "角色", "最后状态"], [50, 100, 80],
+            [d.number, d.name, d.role, d.status], d.color)
     addBreakLine()
 }
 
@@ -564,6 +570,32 @@ function addButton(id, text, cssCla) {
     $("#message").append("<button id=\"" + id + "\" class=\"btn " +
             cssCla + "\">" + text + "</button>\n")
     return $("#" + id)
+}
+
+// !! there is also a special table in elect for down water
+function addTable(id, head, width, data, color, msg) {
+    id = id + counter
+    var i, j
+    html = "<table id=\"" + id + "\" class=\"table\"><thead><tr>"
+    for (i = 0; i < head.length; i++) {
+        if (i < width.length)
+            html += "<th width=\"" + width[i] + "\">"+ head[i] + "</th>"
+        else
+            html += "<th>"+ head[i] + "</th>"
+    }
+    html += "</tr> </thead> <tbody>"
+    for (i = 0; i < data[0].length; i++) {
+        row = "<tr class=\"" + color[i] + "\">"
+        for (j = 0; j < head.length; j++)
+            row += "<td>" + data[j][i] + "</td>"
+        row += "</tr>"
+        html += row
+    }
+    html += "</tbody> </table>"
+    $("#message").append(html)
+    if (msg)
+        $("#message").append("<p>" + msg + "</p>")
+    return id
 }
 
 function addMessage(text) {
