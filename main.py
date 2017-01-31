@@ -105,6 +105,13 @@ def api_quit_room():
     game.quitRoom(name)
     return "bye"
 
+@app.route('/admin/reset', methods=['GET', 'POST'])
+def api_force_close():
+    global game, pdb
+    game = Game()
+    pdb = PlayerDatabase()
+    return "you are admin"
+
 #
 # GAME ROOM
 #
@@ -175,7 +182,7 @@ def test_host():
     global game
     n = 4
     #cfg = GameConfig(2, n-6, True, True, True, True, 'all')
-    cfg = GameConfig(1, 1, True, True, False, False, 'all')
+    cfg = GameConfig(2, 2, False, False, False, False, 'all')
 
     # create players
     pdb.addPlayer('asdf', 'asdf')

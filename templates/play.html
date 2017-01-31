@@ -41,7 +41,9 @@ function getNext() {
         for (i = 0; i < msg.length; i++) {
             console.log(i, msg[i])
             doType[msg[i].type](msg[i])
-            if (msg[i].type != "down-water-button")
+            if (msg[i].type != "down-water-button" &&
+                msg[i].type != "wolf-chat-button" &&
+                msg[i].type != "boom-button")
                 clearButton = true
         }
         // scroll to bottom
@@ -192,19 +194,47 @@ doType["pro-info"] = function(d) {
 }
 
 doType["kill-button"] = function(d) {
+    chatId = addChatBoard("kill")
     chooseName = addChoose("choose-kill", "选择要杀的人", d.players)
-    btn = addButton("kill", "刀TA", "btn-warning")
-    btn.click(function() {
+    kill = addButton("kill", "刀TA", "btn-warning")
+    chatBtn = addButton("send-chat", "聊天", "btn-primary")
+    pass = addButton("pass", "弃权", "btn-default")
+    kill.click(function() {
         sel = $("input:radio[name=" + chooseName + "]:checked").val()
         if (sel == null) { return }
 
-        $.post("/api/send_message", {type: "choose-kill", name: sel},
-            function(data, status) {
-               console.log("post choose kill", data, status)
-               btn.remove()
+        $.post("/api/send_message", {type: "choose-kill", action: "vote",
+            name: sel}, function(data, status) {
+                console.log("post choose kill", data, status)
+                kill.remove(); pass.remove(); chatBtn.remove()
+        })
+    })
+    pass.click(function() {
+        $.post("/api/send_message", {type: "choose-kill", action: "vote",
+            name: ABSTAIN}, function(data, status) {
+                console.log("post choose kill pass", data, status)
+                kill.remove(); pass.remove(); chatBtn.remove()
+        })
+    })
+    chatBtn.click(function() {
+        chatBtn.text("发送中")
+        msg = $("#" + chatId).val()
+        sel = $("input:radio[name=" + chooseName + "]:checked").val()
+        if (msg == "") {
+            if (sel == null) return
+            else msg = "我想选 " + sel
+        }
+        $.post("/api/send_message", {type: "choose-kill", action: "chat",
+            msg: msg}, function(data, status) {
+                console.log("post kill chat", data, status)
         })
     })
     addBreakLine()
+}
+doType["wolf-chat-info"] = function(d) {
+    addChatInfo(chatId, d.from + " ： " + d.msg)
+    if (chatBtn)
+        chatBtn.text("聊天")
 }
 
 doType["witch-button"] = function(d) {
@@ -544,6 +574,10 @@ doType["game-statistic"] = function(d) {
     addBreakLine()
 }
 
+doType["wait-handover-info"] = function(d) {
+    addMessage("等待" + d.name + "移交警徽")
+}
+
 /* UTILITY */
 counter = 0
 function addChoose(name, text, options) {
@@ -565,8 +599,7 @@ function addButton(id, text, cssCla) {
         clearButton = false
         $("#message button").remove()
     }
-    id = id + counter
-    counter += 1
+    id = id + counter; counter += 1
     $("#message").append("<button id=\"" + id + "\" class=\"btn " +
             cssCla + "\">" + text + "</button>\n")
     return $("#" + id)
@@ -574,7 +607,7 @@ function addButton(id, text, cssCla) {
 
 // !! there is also a special table in elect for down water
 function addTable(id, head, width, data, color, msg) {
-    id = id + counter
+    id = id + counter; counter += 1
     var i, j
     html = "<table id=\"" + id + "\" class=\"table\"><thead><tr>"
     for (i = 0; i < head.length; i++) {
@@ -596,6 +629,15 @@ function addTable(id, head, width, data, color, msg) {
     if (msg)
         $("#message").append("<p>" + msg + "</p>")
     return id
+}
+
+function addChatBoard(id) {
+    id = id + counter; counter += 1
+    $("#message").append( "<div class=\"form-group\"> <label>战术聊天</label> <input id=\"" + id + "\" type=\"text\" class=\"form-control\"> </div>")
+    return id
+}
+function addChatInfo(id, msg) {
+    $("#" + id).before("<p>" + msg + "</p>")
 }
 
 function addMessage(text) {

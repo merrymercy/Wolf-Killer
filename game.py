@@ -25,6 +25,7 @@ class Role:
     Role2Str = {WOLF: "狼人", VILLAGER: "普通村民", WITCH: "女巫",
                GUARD: "守卫", HUNTER: "猎人", PROPHET: "预言家" }
 
+# Player Database in Memory
 class PlayerDatabase:
     def __init__(self):
         self.players = {}
@@ -77,11 +78,7 @@ class Player:
     def getRole(self):
         return Role.Role2Str[self.role]
 
-class Engine:
-    def __init__(self):
-        self.log = []
-        self.counter = 0
-
+# Message Deliver
 class Deliver:
     def __init__(self):
         self.to = {}
@@ -148,7 +145,7 @@ class Game:
     WIN_GOOD = 0
     WIN_WOLF = 1
 
-    ABSTAIN = "(!%##&##@"
+    ABSTAIN = "(!%##&##@" # for vote
 
     def __init__(self):
         self.state = Game.GST_NEWGAME
@@ -184,7 +181,6 @@ class Game:
         self.host = pl.username
         self.players[pl.username] = pl
         self.sendPlayer(pl.username, {"type":"host-control-panel"})
-
     def addPlayer(self, pl):
         if self.isFull():
             return False
@@ -348,7 +344,7 @@ class Game:
                 #self.die = [self.wolves[0]]
                 #self.state = Game.GST_SEND_DEATH
                 again = True
-            
+
             #====== CLOSE EYE ======#
             elif (self.state == Game.GST_SEND_CLOSE_EYE):
                 self.sendHost({"type": "close-eye-button"})
@@ -403,36 +399,39 @@ class Game:
                 vt = self.getAliveWolves()
 
                 self.sendMany(vt, {"type": "kill-button", "players": kl})
-
                 self.vote = self.newVote(vt, kl)
                 self.state = Game.GST_WAIT_WOLF
             elif (self.state == Game.GST_WAIT_WOLF):
                 if (data.get("type") == "choose-kill" and name in self.voters):
-                    allVote = self.setVote(name, data.get("name"))
-                    print(name, "vote to", data.get("name"))
-                    if (allVote):
-                        self.beKilled, tie = self.getVoteResult()
-                        self.sendMany(self.voters, {"type": "vote-result",
-                            "tie": tie, "ballot": self.ballot,
-                            "select": self.beKilled, "msg": "被杀" })
-                        if (tie):
-                            print("tie in kill vote")
-                            self.state = Game.GST_SEND_WOLF
-                        else:
-                            print(self.beKilled, "be chosen to kill")
-                            self.state = Game.GST_SEND_WITCH
+                    if (data.get("action") == "vote"):
+                        allVote = self.setVote(name, data.get("name"))
+                        print(name, "vote to", data.get("name"))
+                        if (allVote):
+                            self.beKilled, tie = self.getVoteResult()
+                            self.sendMany(self.voters, {"type": "vote-result",
+                                "tie": tie, "ballot": self.ballot,
+                                "select": self.beKilled, "msg": "被杀" })
+                            if (tie):
+                                print("tie in kill vote")
+                                self.state = Game.GST_SEND_WOLF
+                            else:
+                                print(self.beKilled, "be chosen to kill")
+                                self.state = Game.GST_SEND_WITCH
 
-                        # do death for check win
-                        self.players[self.beKilled].doDie()
-                        gg, winner = self.checkWin()
-                        if (gg):
-                            self.die = [self.beKilled]
-                            self.players[self.beKilled].die("夜里")
-                            self.state = Game.GST_SEND_DEATH
-                        else:
-                            self.players[self.beKilled].undoDie()
-                            self.state = Game.GST_SEND_WITCH
-                        again = True
+                            # do death for check win
+                            self.players[self.beKilled].doDie()
+                            gg, winner = self.checkWin()
+                            if (gg):
+                                self.die = [self.beKilled]
+                                self.players[self.beKilled].die("夜里")
+                                self.state = Game.GST_SEND_DEATH
+                            else:
+                                self.players[self.beKilled].undoDie()
+                                self.state = Game.GST_SEND_WITCH
+                            again = True
+                    elif (data.get("action") == "chat"):
+                        self.sendMany(self.wolves, {"type":"wolf-chat-info",
+                            "from": name, "msg": data.get("msg")})
 
             # WITCH
             elif (self.state == Game.GST_SEND_WITCH):
@@ -627,6 +626,10 @@ class Game:
                     print("police", self.police, "die")
                     self.sendPlayer(self.police, {"type": "handover-button",
                         "players": self.getAlive()})
+                    for item in self.players:
+                        if (item != self.police):
+                            self.sendPlayer(item, {"type":"wait-handover-info",
+                                "name": self.police})
                     self.state = Game.GST_WAIT_HANDOVER
                 else:
                     print("police", self.police, "alive")
