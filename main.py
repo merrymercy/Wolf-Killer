@@ -81,6 +81,9 @@ def api_host_close_room():
     game.close()
     return redirect(url_for("index"))
 
+#
+# API in Game
+#
 @app.route('/api/get_message', methods=['GET'])
 def api_get_message():
     msg = game.deliver.fetch(session['name'])
@@ -188,7 +191,7 @@ def test_host():
     pdb.addPlayer('asdf', 'asdf')
     for i in range(n-1):
         pdb.addPlayer('p' + str(i), 'p' + str(i))
-    #pdb.addPlayer('叶乐', 'ywl') #pdb.addPlayer('董士纬', 'dsw')
+    #pdb.addPlayer('叶温乐', 'ywl') #pdb.addPlayer('董士纬', 'dsw')
     #pdb.addPlayer('徐瑞', 'xr') #pdb.addPlayer('林沈', 'ls')
     #pdb.addPlayer('尤诗超', 'usc') #pdb.addPlayer('阿玉', 'ay')
     #pdb.addPlayer('蛤', 'h')
@@ -200,7 +203,7 @@ def test_host():
     game.setHost(pdb.get('asdf'))
     for i in range(n-1):
         game.addPlayer(pdb.get('p' + str(i)))
-    #game.addPlayer(pdb.get('叶乐')) #game.addPlayer(pdb.get('董士纬'))
+    #game.addPlayer(pdb.get('叶温乐')) #game.addPlayer(pdb.get('董士纬'))
     #game.addPlayer(pdb.get('徐瑞')) #game.addPlayer(pdb.get('林沈'))
     #game.addPlayer(pdb.get('尤诗超')) #game.addPlayer(pdb.get('阿玉'))
     #game.addPlayer(pdb.get('蛤'))
@@ -208,6 +211,34 @@ def test_host():
     # goto host
     session['name'] = 'asdf'
     return redirect(url_for('room_play'))
+
+@app.route('/test/real', methods=['GET'])
+def test_real():
+    global game
+    n = 8
+    cfg = GameConfig(2, 2, True, True, True, True, 'all')
+
+    # create players
+    pdb.addPlayer('asdf', 'asdf')
+    pdb.addPlayer('叶温乐', 'ywl'); pdb.addPlayer('董士纬', 'dsw')
+    pdb.addPlayer('徐瑞', 'xr')   ; pdb.addPlayer('林沈', 'ls')
+    pdb.addPlayer('尤诗超', 'usc'); pdb.addPlayer('阿玉', 'ay')
+    pdb.addPlayer('蛤', 'h')
+
+    # start game
+    game = Game()
+    game.setConfig(cfg)
+    game.state = Game.GST_WAIT_JOIN
+    game.setHost(pdb.get('asdf'))
+    game.addPlayer(pdb.get('叶温乐')); game.addPlayer(pdb.get('董士纬'))
+    game.addPlayer(pdb.get('徐瑞'))  ; game.addPlayer(pdb.get('林沈'))
+    game.addPlayer(pdb.get('尤诗超')); game.addPlayer(pdb.get('阿玉'))
+    game.addPlayer(pdb.get('蛤'))
+
+    # goto host
+    session['name'] = 'asdf'
+    return redirect(url_for('room_play'))
+
 
 @app.route('/haha/<name>', methods=['GET'])
 def test_player(name):
@@ -218,7 +249,6 @@ def test_player(name):
 def test_witch():
     #game.deliver
     return redirect(url_for(redirectAll(session, '')))
-
 
 
 if __name__ == '__main__':

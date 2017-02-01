@@ -107,6 +107,7 @@ class Deliver:
             return tmp
 
 class Game:
+    # Game State Constant
     GST_NEWGAME   = 0
     GST_WAIT_JOIN = 1
     GST_START     = 2
@@ -304,6 +305,8 @@ class Game:
         while (again):
             print("in state", self.state)
             again = False
+
+            #====== GAME START ======#
             if (self.state == Game.GST_START):
                 # send role table
                 number = []; name = [];
@@ -649,7 +652,8 @@ class Game:
                     self.state = self.normalState
                     again = True
 
-            elif (self.state == Game.GST_SEND_EXILE):  # host开始放逐投票按钮
+            # host开始放逐投票按钮
+            elif (self.state == Game.GST_SEND_EXILE):
                 number = []; name   = []; status = []; color =[];
                 i = 1
                 for item in self.players:
@@ -690,7 +694,8 @@ class Game:
                         self.state = Game.GST_SEND_HANDOVER
                     again = True
 
-            elif (self.state == Game.GST_SEND_EXILE_VOTE): # 放逐投票
+            # 放逐投票
+            elif (self.state == Game.GST_SEND_EXILE_VOTE):
                 vt = self.getAlive()
                 ops = self.getAlive()
                 self.sendMany(vt, {"type": "exile-vote", "players": ops})
@@ -718,7 +723,6 @@ class Game:
                         again = True
 
             elif (self.state == Game.GST_SEND_EXILE_INFO):
-                #self.sendAll({"type": "exile-info", "name": self.beExiled})
                 self.die = [self.beExiled]
                 self.players[self.beExiled].die("投票")
 
@@ -730,6 +734,8 @@ class Game:
                     self.state = Game.GST_SEND_HUNTER # 结算猎人和警徽
                 again = True
 
+
+            #====== GAME OVER ======#
             elif (self.state == Game.GST_GAME_OVER):
                 gg, winner = self.checkWin()
                 if (winner == Game.WIN_GOOD):
@@ -856,4 +862,3 @@ class Game:
         print("send room closed")
         self.sendAll({"type": "room-closed"})
         self.state = Game.GST_ROOM_CLOSED
-

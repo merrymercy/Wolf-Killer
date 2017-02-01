@@ -33,9 +33,7 @@
 <script>
 
 function getNext() {
-    var connected = false
     $.get("/api/get_message", function(d) {
-        connected = true
         msg = d.messages
         var i
         for (i = 0; i < msg.length; i++) {
